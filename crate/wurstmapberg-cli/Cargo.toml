@@ -1,0 +1,18 @@
+[package]
+name = "wurstmapberg-cli"
+version.workspace = true
+edition.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+chrono = "0.4.39"
+clap = { version = "4.5.28", features = ["derive"] }
+collect-mac = "0.1.0"
+image = { version = "0.25.5", default-features = false, features = ["rayon", "png"] }
+mcanvil = { version = "0.2.0", path = "C:/Users/fenhl/git/github.com/wurstmineberg/rust-anvil/stage" }
+mimalloc = "0.1.43"
+rayon = "1.10.0"
+thiserror = "2.0.11"
+wheel = { git = "https://github.com/fenhl/wheel", branch = "main" }
