@@ -186,7 +186,6 @@ enum BlockMapColor {
     },
 }
 
-const WORLD_PATH: &str = "D:/wmb-backup/2025-02-09_15-58-12_1.21.4/wurstmineberg/world";
 const DIMENSION: Dimension = Dimension::Overworld;
 
 static FALLBACK_HEIGHTMAP: &[[i32; 16]; 16] = &[[320; 16]; 16];
@@ -231,11 +230,11 @@ enum Error {
 }
 
 #[wheel::main]
-async fn main() -> Result<(), Error> {
+async fn main(Args { world_dir }: Args) -> Result<(), Error> {
     let block_colors = colors::get_block_colors();
     fs::create_dir_all("out").await?;
     let region_errors = Arc::<Mutex<Vec<_>>>::default();
-    Region::all(WORLD_PATH, DIMENSION)
+    Region::all(world_dir, DIMENSION)
         .par_bridge()
         .try_for_each(|region| {
             let region = match region {
