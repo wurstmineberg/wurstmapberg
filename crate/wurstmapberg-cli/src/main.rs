@@ -236,15 +236,15 @@ enum Error {
     ListRegions(RegionDecodeError),
     #[error("a region that was listed has since been deleted")]
     RegionNotFound,
-    #[error("{}", .0[0])]
-    Regions(Vec<RegionDecodeError>),
+    #[error("{}", .0.values().next().unwrap())]
+    Regions(HashMap<[i32; 2], RegionDecodeError>),
 }
 
 #[wheel::main(max_blocking_threads = 0)]
 async fn main(Args { world_dir }: Args) -> Result<(), Error> {
     let block_colors = Arc::new(colors::get_block_colors());
     fs::create_dir_all("out").await?;
-    let region_errors = Arc::<Mutex<Vec<_>>>::default();
+    let region_errors = Arc::<Mutex<HashMap<_, _>>>::default();
     let mut coords = HashMap::<_, BTreeSet<_>>::default();
     let mut coords_stream = pin!(Region::all_coords(&world_dir, DIMENSION));
     while let Some([x, z]) = coords_stream.try_next().await.map_err(Error::ListRegions)? {
@@ -261,7 +261,7 @@ async fn main(Args { world_dir }: Args) -> Result<(), Error> {
                     Ok(Some(region)) => region,
                     Ok(None) => return Err(Error::RegionNotFound),
                     Err(e) => {
-                        region_errors.lock().push(e);
+                        region_errors.lock().insert([x, z], e);
                         return Ok(())
                     }
                 };
