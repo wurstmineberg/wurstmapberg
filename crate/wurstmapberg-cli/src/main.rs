@@ -235,10 +235,12 @@ struct Args {
 
 #[derive(Debug, thiserror::Error)]
 enum Error {
-    #[error(transparent)] ChunkColumnDecode(#[from] mcanvil::ChunkColumnDecodeError),
     #[error(transparent)] Image(#[from] image::ImageError),
     #[error(transparent)] Task(#[from] tokio::task::JoinError),
     #[error(transparent)] Wheel(#[from] wheel::Error),
+    /// Note these are keyed by region coords, not chunk coords
+    #[error("{}", .0.values().next().unwrap())]
+    Cols(HashMap<[i32; 2], mcanvil::ChunkColumnDecodeError>),
     #[error("failed to get list of regions: {0}")]
     ListRegions(RegionDecodeError),
     #[error("a region that was listed has since been deleted")]
@@ -252,6 +254,7 @@ async fn main(Args { world_dir }: Args) -> Result<(), Error> {
     let block_colors = Arc::new(colors::get_block_colors());
     fs::create_dir_all("out").await?;
     let region_errors = Arc::<Mutex<HashMap<_, _>>>::default();
+    let col_errors = Arc::<Mutex<HashMap<_, _>>>::default();
     let mut coords = HashMap::<_, BTreeSet<_>>::default();
     let mut coords_stream = pin!(Region::all_coords(&world_dir, DIMENSION));
     while let Some([x, z]) = coords_stream.try_next().await.map_err(Error::ListRegions)? {
@@ -261,6 +264,7 @@ async fn main(Args { world_dir }: Args) -> Result<(), Error> {
     for (x, zs) in coords {
         let block_colors = &block_colors;
         let region_errors = region_errors.clone();
+        let col_errors = col_errors.clone();
         let world_dir = &world_dir;
         renderers.push(async move {
             let mut prev = None;
@@ -274,6 +278,7 @@ async fn main(Args { world_dir }: Args) -> Result<(), Error> {
                     }
                 };
                 let block_colors = block_colors.clone();
+                let col_errors = col_errors.clone();
                 prev = Some(tokio::task::spawn_blocking(move || {
                     println!("{} processing region {}, {}", Local::now().format("%F %T"), region.coords[0], region.coords[1]);
                     let mut region_img = MapImage {
@@ -281,7 +286,13 @@ async fn main(Args { world_dir }: Args) -> Result<(), Error> {
                         bounds: Some([region.coords[0] * 16 * 32, region.coords[1] * 16 * 32, (region.coords[0] + 1) * 16 * 32, (region.coords[0] + 1) * 16 * 32]),
                     };
                     for col in &region {
-                        let col = col?;
+                        let col = match col {
+                            Ok(col) => col,
+                            Err(e) => {
+                                col_errors.lock().insert([x, z], e);
+                                return Ok(region)
+                            }
+                        };
                         let heightmap = col.heightmaps.get("WORLD_SURFACE").unwrap_or_else(|| &FALLBACK_HEIGHTMAP);
                         for (block_z, row) in heightmap.iter().enumerate() {
                             for (block_x, max_y) in row.iter().enumerate() {
@@ -360,7 +371,7 @@ async fn main(Args { world_dir }: Args) -> Result<(), Error> {
                                                 })
                                             } else {
                                                 // different chunk
-                                                let region = if col.z_pos.rem_euclid(32) > 0 {
+                                                let north_region = if col.z_pos.rem_euclid(32) > 0 {
                                                     // same region
                                                     &region
                                                 } else if let Some(prev) = &prev {
@@ -370,7 +381,14 @@ async fn main(Args { world_dir }: Args) -> Result<(), Error> {
                                                     // not on map
                                                     break 'north_neighbor None
                                                 };
-                                                region.chunk_column([col.x_pos, col.z_pos - 1])?.and_then(|col| {
+                                                let col = match north_region.chunk_column([col.x_pos, col.z_pos - 1]) {
+                                                    Ok(col) => col,
+                                                    Err(e) => {
+                                                        col_errors.lock().insert([x, z], e);
+                                                        return Ok(region)
+                                                    }
+                                                };
+                                                col.and_then(|col| {
                                                     let heightmap = col.heightmaps.get("WORLD_SURFACE").unwrap_or_else(|| &FALLBACK_HEIGHTMAP);
                                                     (col.y_pos..=heightmap[15][block_x]).rev().find(|y| {
                                                         let chunk_y = y.div_euclid(16) as i8;
@@ -413,9 +431,12 @@ async fn main(Args { world_dir }: Args) -> Result<(), Error> {
     }
     while let Some(()) = renderers.try_next().await? {}
     let region_errors = Arc::into_inner(region_errors).unwrap().into_inner();
-    if region_errors.is_empty() {
-        Ok(())
-    } else {
+    let col_errors = Arc::into_inner(col_errors).unwrap().into_inner();
+    if !region_errors.is_empty() {
         Err(Error::Regions(region_errors))
+    } else if !col_errors.is_empty() {
+        Err(Error::Cols(col_errors))
+    } else {
+        Ok(())
     }
 }
