@@ -286,7 +286,10 @@ async fn main(Args { world_dir }: Args) -> Result<(), Error> {
                                     let block_y = y.rem_euclid(16) as usize;
                                     if let Some(chunk) = col.section_at(chunk_y) {
                                         let block = &chunk.block_relative([block_x as u8, block_y as u8, block_z as u8]);
-                                        let Some(&color) = block_colors.get(&block.name) else { continue };
+                                        let Some(&color) = block_colors.get(&block.name) else {
+                                            y -= 1;
+                                            continue
+                                        };
                                         col_color = match color {
                                             BlockMapColor::Single(color) => color,
                                             BlockMapColor::Bed { head, foot } => if block.properties.get("part").is_some_and(|part| part == "head") { head } else { foot },
