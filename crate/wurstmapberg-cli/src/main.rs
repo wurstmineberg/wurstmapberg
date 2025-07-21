@@ -3,16 +3,22 @@ static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
 use {
     std::{
+        collections::{
+            BTreeSet,
+            HashMap,
+        },
         path::{
             Path,
             PathBuf,
         },
-        sync::{
-            Arc,
-            Mutex,
-        },
+        pin::pin,
+        sync::Arc,
     },
     chrono::prelude::*,
+    futures::stream::{
+        FuturesUnordered,
+        TryStreamExt as _,
+    },
     image::{
         Rgba,
         RgbaImage,
@@ -22,7 +28,7 @@ use {
         Region,
         RegionDecodeError,
     },
-    rayon::prelude::*,
+    parking_lot::Mutex,
     wheel::fs,
 };
 
@@ -224,65 +230,86 @@ struct Args {
 enum Error {
     #[error(transparent)] ChunkColumnDecode(#[from] mcanvil::ChunkColumnDecodeError),
     #[error(transparent)] Image(#[from] image::ImageError),
+    #[error(transparent)] Task(#[from] tokio::task::JoinError),
     #[error(transparent)] Wheel(#[from] wheel::Error),
+    #[error("failed to get list of regions: {0}")]
+    ListRegions(RegionDecodeError),
+    #[error("a region that was listed has since been deleted")]
+    RegionNotFound,
     #[error("{}", .0[0])]
     Regions(Vec<RegionDecodeError>),
 }
 
-#[wheel::main]
+#[wheel::main(max_blocking_threads = 0)]
 async fn main(Args { world_dir }: Args) -> Result<(), Error> {
-    let block_colors = colors::get_block_colors();
+    let block_colors = Arc::new(colors::get_block_colors());
     fs::create_dir_all("out").await?;
     let region_errors = Arc::<Mutex<Vec<_>>>::default();
-    Region::all(world_dir, DIMENSION)
-        .par_bridge()
-        .try_for_each(|region| {
-            let region = match region {
-                Ok(region) => region,
-                Err(e) => {
-                    region_errors.lock().unwrap().push(e);
-                    return Ok::<_, Error>(())
-                }
-            };
-            println!("{} processing region {}, {}", Local::now().format("%F %T"), region.coords[0], region.coords[1]);
-            let mut region_img = MapImage {
-                img: RgbaImage::new(16 * 32, 16 * 32),
-                bounds: Some([region.coords[0] * 16 * 32, region.coords[1] * 16 * 32, (region.coords[0] + 1) * 16 * 32, (region.coords[0] + 1) * 16 * 32]),
-            };
-            for col in &region {
-                let col = col?;
-                for (block_z, row) in col.heightmaps.get("WORLD_SURFACE").unwrap_or_else(|| &FALLBACK_HEIGHTMAP).iter().enumerate() {
-                    for (block_x, max_y) in row.iter().enumerate() {
-                        let mut col_color = MapColor::Clear;
-                        for y in (col.y_pos..=*max_y).rev() {
-                            let chunk_y = y.div_euclid(16) as i8;
-                            let block_y = y.rem_euclid(16) as usize;
-                            if let Some(chunk) = col.section_at(chunk_y) {
-                                let block = &chunk.block_relative([block_x as u8, block_y as u8, block_z as u8]);
-                                let name = block.name.strip_prefix("minecraft:").unwrap_or(&block.name);
-                                let Some(&color) = block_colors.get(name) else { continue };
-                                col_color = match color {
-                                    BlockMapColor::Single(color) => color,
-                                    BlockMapColor::Bed { head, foot } => if block.properties.get("part").is_some_and(|part| part == "head") { head } else { foot },
-                                    BlockMapColor::Crops { growing, grown } => if block.properties.get("age").is_some_and(|age| age == "7") { grown } else { growing },
-                                    BlockMapColor::Pillar { top, side } => if block.properties.get("axis").is_some_and(|axis| axis != "y") { side } else { top },
-                                    BlockMapColor::Waterloggable { dry, wet } => if block.properties.get("waterlogged").is_some_and(|waterlogged| waterlogged == "true") { wet } else { dry },
-                                };
-                                if col_color != MapColor::Clear { break }
+    let mut coords = HashMap::<_, BTreeSet<_>>::default();
+    let mut coords_stream = pin!(Region::all_coords(&world_dir, DIMENSION));
+    while let Some([x, z]) = coords_stream.try_next().await.map_err(Error::ListRegions)? {
+        coords.entry(x).or_default().insert(z);
+    }
+    let mut renderers = FuturesUnordered::default();
+    for (x, zs) in coords {
+        let block_colors = &block_colors;
+        let region_errors = region_errors.clone();
+        let world_dir = &world_dir;
+        renderers.push(async move {
+            for z in zs {
+                let region = match Region::find(world_dir, DIMENSION, [x, z]).await {
+                    Ok(Some(region)) => region,
+                    Ok(None) => return Err(Error::RegionNotFound),
+                    Err(e) => {
+                        region_errors.lock().push(e);
+                        return Ok(())
+                    }
+                };
+                let block_colors = block_colors.clone();
+                tokio::task::spawn_blocking(move || {
+                    println!("{} processing region {}, {}", Local::now().format("%F %T"), region.coords[0], region.coords[1]);
+                    let mut region_img = MapImage {
+                        img: RgbaImage::new(16 * 32, 16 * 32),
+                        bounds: Some([region.coords[0] * 16 * 32, region.coords[1] * 16 * 32, (region.coords[0] + 1) * 16 * 32, (region.coords[0] + 1) * 16 * 32]),
+                    };
+                    for col in &region {
+                        let col = col?;
+                        for (block_z, row) in col.heightmaps.get("WORLD_SURFACE").unwrap_or_else(|| &FALLBACK_HEIGHTMAP).iter().enumerate() {
+                            for (block_x, max_y) in row.iter().enumerate() {
+                                let mut col_color = MapColor::Clear;
+                                for y in (col.y_pos..=*max_y).rev() {
+                                    let chunk_y = y.div_euclid(16) as i8;
+                                    let block_y = y.rem_euclid(16) as usize;
+                                    if let Some(chunk) = col.section_at(chunk_y) {
+                                        let block = &chunk.block_relative([block_x as u8, block_y as u8, block_z as u8]);
+                                        let Some(&color) = block_colors.get(&block.name) else { continue };
+                                        col_color = match color {
+                                            BlockMapColor::Single(color) => color,
+                                            BlockMapColor::Bed { head, foot } => if block.properties.get("part").is_some_and(|part| part == "head") { head } else { foot },
+                                            BlockMapColor::Crops { growing, grown } => if block.properties.get("age").is_some_and(|age| age == "7") { grown } else { growing },
+                                            BlockMapColor::Pillar { top, side } => if block.properties.get("axis").is_some_and(|axis| axis != "y") { side } else { top },
+                                            BlockMapColor::Waterloggable { dry, wet } => if block.properties.get("waterlogged").is_some_and(|waterlogged| waterlogged == "true") { wet } else { dry },
+                                        };
+                                        if col_color != MapColor::Clear { break }
+                                    }
+                                }
+                                //TODO special case for water
+                                //TODO shading based on heightmap difference
+                                let x = col.x_pos * 16 + block_x as i32;
+                                let z = col.z_pos * 16 + block_z as i32;
+                                region_img.insert([x, z], col_color);
                             }
                         }
-                        //TODO special case for water
-                        //TODO shading based on heightmap difference
-                        let x = col.x_pos * 16 + block_x as i32;
-                        let z = col.z_pos * 16 + block_z as i32;
-                        region_img.insert([x, z], col_color);
                     }
-                }
+                    region_img.img.save_with_format(Path::new("out").join(format!("r.{}.{}.png", region.coords[0], region.coords[1])), image::ImageFormat::Png)?; //TODO async
+                    Ok::<_, Error>(())
+                }).await??;
             }
-            region_img.img.save_with_format(Path::new("out").join(format!("r.{}.{}.png", region.coords[0], region.coords[1])), image::ImageFormat::Png)?;
             Ok(())
-        })?;
-    let region_errors = Arc::into_inner(region_errors).unwrap().into_inner().unwrap();
+        });
+    }
+    while let Some(()) = renderers.try_next().await? {}
+    let region_errors = Arc::into_inner(region_errors).unwrap().into_inner();
     if region_errors.is_empty() {
         Ok(())
     } else {

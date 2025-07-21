@@ -10,9 +10,11 @@ workspace = true
 chrono = "0.4.39"
 clap = { version = "4.5.28", features = ["derive"] }
 collect-mac = "0.1.0"
+futures = "0.3.31"
 image = { version = "0.25.5", default-features = false, features = ["rayon", "png"] }
 mcanvil = { git = "https://github.com/wurstmineberg/rust-anvil", branch = "main" }
 mimalloc = "0.1.43"
-rayon = "1.10.0"
+parking_lot = "0.12.4"
 thiserror = "2.0.11"
+tokio = { version = "1.46.1", features = ["rt"] }
 wheel = { git = "https://github.com/fenhl/wheel", branch = "main" }
