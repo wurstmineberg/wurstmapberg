@@ -3,6 +3,7 @@ static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
 use {
     std::{
+        cmp::Ordering::*,
         collections::{
             BTreeSet,
             HashMap,
@@ -100,10 +101,26 @@ enum MapColor {
     LichenGreen,
 }
 
-impl From<MapColor> for Rgba<u8> {
-    fn from(color: MapColor) -> Self {
-        let rgb = match color {
-            MapColor::Clear => return Self([0; 4]),
+enum Tint {
+    Dark,
+    Normal,
+    Light,
+}
+
+impl Tint {
+    fn multiplier(&self) -> u16 {
+        match self {
+            Self::Dark => 180,
+            Self::Normal => 220,
+            Self::Light => 255,
+        }
+    }
+}
+
+impl MapColor {
+    fn tint(&self, tint: Tint) -> Rgba<u8> {
+        let base_rgb = match self {
+            MapColor::Clear => return Rgba([0; 4]),
             MapColor::PaleGreen => 8368696_u32,
             MapColor::PaleYellow => 16247203,
             MapColor::WhiteGray => 13092807,
@@ -166,8 +183,8 @@ impl From<MapColor> for Rgba<u8> {
             MapColor::RawIronPink => 14200723,
             MapColor::LichenGreen => 8365974,
         };
-        let [_, r, g, b] = rgb.to_be_bytes();
-        Self([r, g, b, u8::MAX])
+        let [_, r, g, b] = base_rgb.to_be_bytes().map(|channel| (u16::from(channel) * tint.multiplier() / 255) as u8);
+        Rgba([r, g, b, u8::MAX])
     }
 }
 
@@ -203,20 +220,10 @@ struct MapImage {
 }
 
 impl MapImage {
-    fn insert(&mut self, [x, z]: [i32; 2], color: MapColor) {
+    fn insert(&mut self, [x, z]: [i32; 2], color: Rgba<u8>) {
         let [min_x, min_z, max_x, max_z] = self.bounds.get_or_insert_with(|| [x, z, x, z]);
-        if x < *min_x || z < *min_z || x >= *max_x || z >= *max_z {
-            let old_min_x = *min_x;
-            let old_min_z = *min_z;
-            *min_x = x.min(*min_x);
-            *min_z = z.min(*min_z);
-            *max_x = (x + 1).max(*max_x);
-            *max_z = (z + 1).max(*max_z);
-            self.img = RgbaImage::from_par_fn((*max_x - *min_x).try_into().unwrap(), (*max_z - *min_z).try_into().unwrap(), |ix, iz| {
-                self.img.get_pixel_checked(ix + (old_min_x - *min_x) as u32, iz + (old_min_z - *min_z) as u32).copied().unwrap_or_else(|| Rgba([0; 4]))
-            });
-        }
-        self.img[((x - *min_x) as u32, (z - *min_z) as u32)] = color.into();
+        debug_assert!(!(x < *min_x || z < *min_z || x >= *max_x || z >= *max_z));
+        self.img[((x - *min_x) as u32, (z - *min_z) as u32)] = color;
     }
 }
 
@@ -256,6 +263,7 @@ async fn main(Args { world_dir }: Args) -> Result<(), Error> {
         let region_errors = region_errors.clone();
         let world_dir = &world_dir;
         renderers.push(async move {
+            let mut prev = None;
             for z in zs {
                 let region = match Region::find(world_dir, DIMENSION, [x, z]).await {
                     Ok(Some(region)) => region,
@@ -266,7 +274,7 @@ async fn main(Args { world_dir }: Args) -> Result<(), Error> {
                     }
                 };
                 let block_colors = block_colors.clone();
-                tokio::task::spawn_blocking(move || {
+                prev = Some(tokio::task::spawn_blocking(move || {
                     println!("{} processing region {}, {}", Local::now().format("%F %T"), region.coords[0], region.coords[1]);
                     let mut region_img = MapImage {
                         img: RgbaImage::new(16 * 32, 16 * 32),
@@ -274,10 +282,12 @@ async fn main(Args { world_dir }: Args) -> Result<(), Error> {
                     };
                     for col in &region {
                         let col = col?;
-                        for (block_z, row) in col.heightmaps.get("WORLD_SURFACE").unwrap_or_else(|| &FALLBACK_HEIGHTMAP).iter().enumerate() {
+                        let heightmap = col.heightmaps.get("WORLD_SURFACE").unwrap_or_else(|| &FALLBACK_HEIGHTMAP);
+                        for (block_z, row) in heightmap.iter().enumerate() {
                             for (block_x, max_y) in row.iter().enumerate() {
                                 let mut col_color = MapColor::Clear;
-                                for y in (col.y_pos..=*max_y).rev() {
+                                let mut y = *max_y;
+                                while y >= col.y_pos {
                                     let chunk_y = y.div_euclid(16) as i8;
                                     let block_y = y.rem_euclid(16) as usize;
                                     if let Some(chunk) = col.section_at(chunk_y) {
@@ -292,18 +302,111 @@ async fn main(Args { world_dir }: Args) -> Result<(), Error> {
                                         };
                                         if col_color != MapColor::Clear { break }
                                     }
+                                    if y == col.y_pos { break }
+                                    y -= 1;
                                 }
-                                //TODO special case for water
-                                //TODO shading based on heightmap difference
                                 let x = col.x_pos * 16 + block_x as i32;
                                 let z = col.z_pos * 16 + block_z as i32;
-                                region_img.insert([x, z], col_color);
+                                let tint = match col_color {
+                                    MapColor::Clear => Tint::Normal,
+                                    MapColor::WaterBlue => {
+                                        let water_depth = (col.y_pos..=y).rev().take_while(|y| {
+                                            let chunk_y = y.div_euclid(16) as i8;
+                                            let block_y = y.rem_euclid(16) as usize;
+                                            if let Some(chunk) = col.section_at(chunk_y) {
+                                                let block = &chunk.block_relative([block_x as u8, block_y as u8, block_z as u8]);
+                                                let Some(&color) = block_colors.get(&block.name) else { return false };
+                                                col_color = match color {
+                                                    BlockMapColor::Single(color) => color,
+                                                    BlockMapColor::Bed { head, foot } => if block.properties.get("part").is_some_and(|part| part == "head") { head } else { foot },
+                                                    BlockMapColor::Crops { growing, grown } => if block.properties.get("age").is_some_and(|age| age == "7") { grown } else { growing },
+                                                    BlockMapColor::Pillar { top, side } => if block.properties.get("axis").is_some_and(|axis| axis != "y") { side } else { top },
+                                                    BlockMapColor::Waterloggable { dry, wet } => if block.properties.get("waterlogged").is_some_and(|waterlogged| waterlogged == "true") { wet } else { dry },
+                                                };
+                                                col_color == MapColor::WaterBlue || block.properties.get("waterlogged").is_some_and(|waterlogged| waterlogged == "true")
+                                            } else {
+                                                false
+                                            }
+                                        }).count();
+                                        match water_depth {
+                                            ..=2 => Tint::Light,
+                                            3..=4 => if (block_x + block_z) % 2 == 0 { Tint::Light } else { Tint::Normal },
+                                            5..=6 => Tint::Normal,
+                                            7..=9 => if (block_x + block_z) % 2 == 0 { Tint::Normal } else { Tint::Dark },
+                                            _ => Tint::Dark,
+                                        }
+                                    }
+                                    _ => {
+                                        let north_neighbor = 'north_neighbor: {
+                                            if let Some(block_z) = block_z.checked_sub(1) {
+                                                // same chunk
+                                                (col.y_pos..=heightmap[block_z][block_x]).rev().find(|y| {
+                                                    let chunk_y = y.div_euclid(16) as i8;
+                                                    let block_y = y.rem_euclid(16) as usize;
+                                                    if let Some(chunk) = col.section_at(chunk_y) {
+                                                        let block = &chunk.block_relative([block_x as u8, block_y as u8, block_z as u8]);
+                                                        let Some(&color) = block_colors.get(&block.name) else { return false };
+                                                        col_color = match color {
+                                                            BlockMapColor::Single(color) => color,
+                                                            BlockMapColor::Bed { head, foot } => if block.properties.get("part").is_some_and(|part| part == "head") { head } else { foot },
+                                                            BlockMapColor::Crops { growing, grown } => if block.properties.get("age").is_some_and(|age| age == "7") { grown } else { growing },
+                                                            BlockMapColor::Pillar { top, side } => if block.properties.get("axis").is_some_and(|axis| axis != "y") { side } else { top },
+                                                            BlockMapColor::Waterloggable { dry, wet } => if block.properties.get("waterlogged").is_some_and(|waterlogged| waterlogged == "true") { wet } else { dry },
+                                                        };
+                                                        col_color != MapColor::Clear
+                                                    } else {
+                                                        false
+                                                    }
+                                                })
+                                            } else {
+                                                // different chunk
+                                                let region = if col.z_pos.rem_euclid(32) > 0 {
+                                                    // same region
+                                                    &region
+                                                } else if let Some(prev) = &prev {
+                                                    // different region
+                                                    prev
+                                                } else {
+                                                    // not on map
+                                                    break 'north_neighbor None
+                                                };
+                                                region.chunk_column([col.x_pos, col.z_pos - 1])?.and_then(|col| {
+                                                    let heightmap = col.heightmaps.get("WORLD_SURFACE").unwrap_or_else(|| &FALLBACK_HEIGHTMAP);
+                                                    (col.y_pos..=heightmap[15][block_x]).rev().find(|y| {
+                                                        let chunk_y = y.div_euclid(16) as i8;
+                                                        let block_y = y.rem_euclid(16) as usize;
+                                                        if let Some(chunk) = col.section_at(chunk_y) {
+                                                            let block = &chunk.block_relative([block_x as u8, block_y as u8, 15]);
+                                                            let Some(&color) = block_colors.get(&block.name) else { return false };
+                                                            col_color = match color {
+                                                                BlockMapColor::Single(color) => color,
+                                                                BlockMapColor::Bed { head, foot } => if block.properties.get("part").is_some_and(|part| part == "head") { head } else { foot },
+                                                                BlockMapColor::Crops { growing, grown } => if block.properties.get("age").is_some_and(|age| age == "7") { grown } else { growing },
+                                                                BlockMapColor::Pillar { top, side } => if block.properties.get("axis").is_some_and(|axis| axis != "y") { side } else { top },
+                                                                BlockMapColor::Waterloggable { dry, wet } => if block.properties.get("waterlogged").is_some_and(|waterlogged| waterlogged == "true") { wet } else { dry },
+                                                            };
+                                                            col_color != MapColor::Clear
+                                                        } else {
+                                                            false
+                                                        }
+                                                    })
+                                                })
+                                            }
+                                        }.unwrap_or(y);
+                                        match y.cmp(&north_neighbor) {
+                                            Less => Tint::Dark,
+                                            Equal => Tint::Normal,
+                                            Greater => Tint::Light,
+                                        }
+                                    }
+                                };
+                                region_img.insert([x, z], col_color.tint(tint));
                             }
                         }
                     }
                     region_img.img.save_with_format(Path::new("out").join(format!("r.{}.{}.png", region.coords[0], region.coords[1])), image::ImageFormat::Png)?; //TODO async
-                    Ok::<_, Error>(())
-                }).await??;
+                    Ok::<_, Error>(region)
+                }).await??);
             }
             Ok(())
         });
