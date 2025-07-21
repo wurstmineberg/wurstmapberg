@@ -313,7 +313,7 @@ async fn main(Args { world_dir }: Args) -> Result<(), Error> {
                                             if let Some(chunk) = col.section_at(chunk_y) {
                                                 let block = &chunk.block_relative([block_x as u8, block_y as u8, block_z as u8]);
                                                 let Some(&color) = block_colors.get(&block.name) else { return false };
-                                                col_color = match color {
+                                                let col_color = match color {
                                                     BlockMapColor::Single(color) => color,
                                                     BlockMapColor::Bed { head, foot } => if block.properties.get("part").is_some_and(|part| part == "head") { head } else { foot },
                                                     BlockMapColor::Crops { growing, grown } => if block.properties.get("age").is_some_and(|age| age == "7") { grown } else { growing },
@@ -343,7 +343,7 @@ async fn main(Args { world_dir }: Args) -> Result<(), Error> {
                                                     if let Some(chunk) = col.section_at(chunk_y) {
                                                         let block = &chunk.block_relative([block_x as u8, block_y as u8, block_z as u8]);
                                                         let Some(&color) = block_colors.get(&block.name) else { return false };
-                                                        col_color = match color {
+                                                        let col_color = match color {
                                                             BlockMapColor::Single(color) => color,
                                                             BlockMapColor::Bed { head, foot } => if block.properties.get("part").is_some_and(|part| part == "head") { head } else { foot },
                                                             BlockMapColor::Crops { growing, grown } => if block.properties.get("age").is_some_and(|age| age == "7") { grown } else { growing },
@@ -382,7 +382,7 @@ async fn main(Args { world_dir }: Args) -> Result<(), Error> {
                                                         if let Some(chunk) = col.section_at(chunk_y) {
                                                             let block = &chunk.block_relative([block_x as u8, block_y as u8, 15]);
                                                             let Some(&color) = block_colors.get(&block.name) else { return false };
-                                                            col_color = match color {
+                                                            let col_color = match color {
                                                                 BlockMapColor::Single(color) => color,
                                                                 BlockMapColor::Bed { head, foot } => if block.properties.get("part").is_some_and(|part| part == "head") { head } else { foot },
                                                                 BlockMapColor::Crops { growing, grown } => if block.properties.get("age").is_some_and(|age| age == "7") { grown } else { growing },
