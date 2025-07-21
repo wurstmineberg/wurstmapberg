@@ -213,20 +213,6 @@ const DIMENSION: Dimension = Dimension::Overworld;
 
 static FALLBACK_HEIGHTMAP: &[[i32; 16]; 16] = &[[320; 16]; 16];
 
-#[derive(Default)]
-struct MapImage {
-    img: RgbaImage,
-    bounds: Option<[i32; 4]>,
-}
-
-impl MapImage {
-    fn insert(&mut self, [x, z]: [i32; 2], color: Rgba<u8>) {
-        let [min_x, min_z, max_x, max_z] = self.bounds.get_or_insert_with(|| [x, z, x, z]);
-        debug_assert!(!(x < *min_x || z < *min_z || x >= *max_x || z >= *max_z));
-        self.img[((x - *min_x) as u32, (z - *min_z) as u32)] = color;
-    }
-}
-
 #[derive(clap::Parser)]
 #[clap(version)]
 struct Args {
@@ -281,10 +267,7 @@ async fn main(Args { world_dir }: Args) -> Result<(), Error> {
                 let col_errors = col_errors.clone();
                 prev = Some(tokio::task::spawn_blocking(move || {
                     println!("{} processing region {}, {}", Local::now().format("%F %T"), region.coords[0], region.coords[1]);
-                    let mut region_img = MapImage {
-                        img: RgbaImage::new(16 * 32, 16 * 32),
-                        bounds: Some([region.coords[0] * 16 * 32, region.coords[1] * 16 * 32, (region.coords[0] + 1) * 16 * 32, (region.coords[0] + 1) * 16 * 32]),
-                    };
+                    let mut region_img = RgbaImage::new(16 * 32, 16 * 32);
                     for col in &region {
                         let col = match col {
                             Ok(col) => col,
@@ -418,11 +401,11 @@ async fn main(Args { world_dir }: Args) -> Result<(), Error> {
                                         }
                                     }
                                 };
-                                region_img.insert([x, z], col_color.tint(tint));
+                                region_img[(x.rem_euclid(16 * 32) as u32, z.rem_euclid(16 * 32) as u32)] = col_color.tint(tint);
                             }
                         }
                     }
-                    region_img.img.save_with_format(Path::new("out").join(format!("r.{}.{}.png", region.coords[0], region.coords[1])), image::ImageFormat::Png)?; //TODO async
+                    region_img.save_with_format(Path::new("out").join(format!("r.{}.{}.png", region.coords[0], region.coords[1])), image::ImageFormat::Png)?; //TODO async
                     Ok::<_, Error>(region)
                 }).await??);
             }
