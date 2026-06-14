@@ -21,6 +21,7 @@ use {
         TryStreamExt as _,
     },
     image::{
+        ImageError,
         Rgba,
         RgbaImage,
     },
@@ -30,6 +31,7 @@ use {
         RegionDecodeError,
     },
     parking_lot::Mutex,
+    tokio::io,
     wheel::fs,
 };
 
@@ -221,7 +223,7 @@ struct Args {
 
 #[derive(Debug, thiserror::Error)]
 enum Error {
-    #[error(transparent)] Image(#[from] image::ImageError),
+    #[error(transparent)] Image(#[from] ImageError),
     #[error(transparent)] Task(#[from] tokio::task::JoinError),
     #[error(transparent)] Wheel(#[from] wheel::Error),
     /// Note these are keyed by region coords, not chunk coords
@@ -276,7 +278,7 @@ async fn main(Args { world_dir }: Args) -> Result<(), Error> {
                                 return Ok(region)
                             }
                         };
-                        let heightmap = col.heightmaps.get("WORLD_SURFACE").unwrap_or_else(|| &FALLBACK_HEIGHTMAP);
+                        let heightmap = col.heightmaps.get("WORLD_SURFACE").unwrap_or(FALLBACK_HEIGHTMAP);
                         for (block_z, row) in heightmap.iter().enumerate() {
                             for (block_x, max_y) in row.iter().enumerate() {
                                 let mut col_color = MapColor::None;
@@ -408,7 +410,15 @@ async fn main(Args { world_dir }: Args) -> Result<(), Error> {
                             }
                         }
                     }
-                    region_img.save_with_format(Path::new("out").join(format!("r.{}.{}.png", region.coords[0], region.coords[1])), image::ImageFormat::Png)?; //TODO async
+                    let path = Path::new("out").join(format!("r.{}.{}.png", region.coords[0], region.coords[1]));
+                    let changed = match image::open(&path) { //TODO async
+                        Ok(old_img) => RgbaImage::from(old_img) != region_img,
+                        Err(ImageError::IoError(e)) if e.kind() == io::ErrorKind::NotFound => true,
+                        Err(e) => return Err(e.into()),
+                    };
+                    if changed {
+                        region_img.save_with_format(path, image::ImageFormat::Png)?; //TODO async
+                    }
                     Ok::<_, Error>(region)
                 }).await??);
             }
