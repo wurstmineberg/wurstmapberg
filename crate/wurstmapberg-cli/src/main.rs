@@ -37,48 +37,48 @@ mod colors;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum MapColor {
-    Clear,
-    PaleGreen,
-    PaleYellow,
-    WhiteGray,
-    BrightRed,
-    PalePurple,
-    IronGray,
-    DarkGreen,
-    White,
-    LightBlueGray,
-    DirtBrown,
-    StoneGray,
-    WaterBlue,
-    OakTan,
-    OffWhite,
-    Orange,
-    Magenta,
-    LightBlue,
-    Yellow,
-    Lime,
-    Pink,
-    Gray,
-    LightGray,
-    Cyan,
-    Purple,
-    Blue,
-    Brown,
-    Green,
-    Red,
-    Black,
+    None,
+    Grass,
+    Sand,
+    Wool,
+    Fire,
+    Ice,
+    Metal,
+    Plant,
+    Snow,
+    Clay,
+    Dirt,
+    Stone,
+    Water,
+    Wood,
+    Quartz,
+    ColorOrange,
+    ColorMagenta,
+    ColorLightBlue,
+    ColorYellow,
+    ColorLightGreen,
+    ColorPink,
+    ColorGray,
+    ColorLightGray,
+    ColorCyan,
+    ColorPurple,
+    ColorBlue,
+    ColorBrown,
+    ColorGreen,
+    ColorRed,
+    ColorBlack,
     Gold,
-    DiamondBlue,
-    LapisBlue,
-    EmeraldGreen,
-    SpruceBrown,
-    DarkRed,
+    Diamond,
+    Lapis,
+    Emerald,
+    Podzol,
+    Nether,
     TerracottaWhite,
     TerracottaOrange,
     TerracottaMagenta,
     TerracottaLightBlue,
     TerracottaYellow,
-    TerracottaLime,
+    TerracottaLightGreen,
     TerracottaPink,
     TerracottaGray,
     TerracottaLightGray,
@@ -89,16 +89,16 @@ enum MapColor {
     TerracottaGreen,
     TerracottaRed,
     TerracottaBlack,
-    DullRed,
-    DullPink,
-    DarkCrimson,
-    Teal,
-    DarkAqua,
-    DarkDullPink,
-    BrightTeal,
-    DeepslateGray,
-    RawIronPink,
-    LichenGreen,
+    CrimsonNylium,
+    CrimsonStem,
+    CrimsonHyphae,
+    WarpedNylium,
+    WarpedStem,
+    WarpedHyphae,
+    WarpedWartBlock,
+    Deepslate,
+    RawIron,
+    GlowLichen,
 }
 
 enum Tint {
@@ -120,48 +120,48 @@ impl Tint {
 impl MapColor {
     fn tint(&self, tint: Tint) -> Rgba<u8> {
         let base_rgb = match self {
-            MapColor::Clear => return Rgba([0; 4]),
-            MapColor::PaleGreen => 8368696_u32,
-            MapColor::PaleYellow => 16247203,
-            MapColor::WhiteGray => 13092807,
-            MapColor::BrightRed => 16711680,
-            MapColor::PalePurple => 10526975,
-            MapColor::IronGray => 10987431,
-            MapColor::DarkGreen => 31744,
-            MapColor::White => 16777215,
-            MapColor::LightBlueGray => 10791096,
-            MapColor::DirtBrown => 9923917,
-            MapColor::StoneGray => 7368816,
-            MapColor::WaterBlue => 4210943,
-            MapColor::OakTan => 9402184,
-            MapColor::OffWhite => 16776437,
-            MapColor::Orange => 14188339,
-            MapColor::Magenta => 11685080,
-            MapColor::LightBlue => 6724056,
-            MapColor::Yellow => 15066419,
-            MapColor::Lime => 8375321,
-            MapColor::Pink => 15892389,
-            MapColor::Gray => 5000268,
-            MapColor::LightGray => 10066329,
-            MapColor::Cyan => 5013401,
-            MapColor::Purple => 8339378,
-            MapColor::Blue => 3361970,
-            MapColor::Brown => 6704179,
-            MapColor::Green => 6717235,
-            MapColor::Red => 10040115,
-            MapColor::Black => 1644825,
+            MapColor::None => return Rgba([0; 4]),
+            MapColor::Grass => 8368696_u32,
+            MapColor::Sand => 16247203,
+            MapColor::Wool => 13092807,
+            MapColor::Fire => 16711680,
+            MapColor::Ice => 10526975,
+            MapColor::Metal => 10987431,
+            MapColor::Plant => 31744,
+            MapColor::Snow => 16777215,
+            MapColor::Clay => 10791096,
+            MapColor::Dirt => 9923917,
+            MapColor::Stone => 7368816,
+            MapColor::Water => 4210943,
+            MapColor::Wood => 9402184,
+            MapColor::Quartz => 16776437,
+            MapColor::ColorOrange => 14188339,
+            MapColor::ColorMagenta => 11685080,
+            MapColor::ColorLightBlue => 6724056,
+            MapColor::ColorYellow => 15066419,
+            MapColor::ColorLightGreen => 8375321,
+            MapColor::ColorPink => 15892389,
+            MapColor::ColorGray => 5000268,
+            MapColor::ColorLightGray => 10066329,
+            MapColor::ColorCyan => 5013401,
+            MapColor::ColorPurple => 8339378,
+            MapColor::ColorBlue => 3361970,
+            MapColor::ColorBrown => 6704179,
+            MapColor::ColorGreen => 6717235,
+            MapColor::ColorRed => 10040115,
+            MapColor::ColorBlack => 1644825,
             MapColor::Gold => 16445005,
-            MapColor::DiamondBlue => 6085589,
-            MapColor::LapisBlue => 4882687,
-            MapColor::EmeraldGreen => 55610,
-            MapColor::SpruceBrown => 8476209,
-            MapColor::DarkRed => 7340544,
+            MapColor::Diamond => 6085589,
+            MapColor::Lapis => 4882687,
+            MapColor::Emerald => 55610,
+            MapColor::Podzol => 8476209,
+            MapColor::Nether => 7340544,
             MapColor::TerracottaWhite => 13742497,
             MapColor::TerracottaOrange => 10441252,
             MapColor::TerracottaMagenta => 9787244,
             MapColor::TerracottaLightBlue => 7367818,
             MapColor::TerracottaYellow => 12223780,
-            MapColor::TerracottaLime => 6780213,
+            MapColor::TerracottaLightGreen => 6780213,
             MapColor::TerracottaPink => 10505550,
             MapColor::TerracottaGray => 3746083,
             MapColor::TerracottaLightGray => 8874850,
@@ -172,16 +172,16 @@ impl MapColor {
             MapColor::TerracottaGreen => 5001770,
             MapColor::TerracottaRed => 9321518,
             MapColor::TerracottaBlack => 2430480,
-            MapColor::DullRed => 12398641,
-            MapColor::DullPink => 9715553,
-            MapColor::DarkCrimson => 6035741,
-            MapColor::Teal => 1474182,
-            MapColor::DarkAqua => 3837580,
-            MapColor::DarkDullPink => 5647422,
-            MapColor::BrightTeal => 1356933,
-            MapColor::DeepslateGray => 6579300,
-            MapColor::RawIronPink => 14200723,
-            MapColor::LichenGreen => 8365974,
+            MapColor::CrimsonNylium => 12398641,
+            MapColor::CrimsonStem => 9715553,
+            MapColor::CrimsonHyphae => 6035741,
+            MapColor::WarpedNylium => 1474182,
+            MapColor::WarpedStem => 3837580,
+            MapColor::WarpedHyphae => 5647422,
+            MapColor::WarpedWartBlock => 1356933,
+            MapColor::Deepslate => 6579300,
+            MapColor::RawIron => 14200723,
+            MapColor::GlowLichen => 8365974,
         };
         let [_, r, g, b] = base_rgb.to_be_bytes().map(|channel| (u16::from(channel) * tint.multiplier() / 255) as u8);
         Rgba([r, g, b, u8::MAX])
@@ -279,7 +279,7 @@ async fn main(Args { world_dir }: Args) -> Result<(), Error> {
                         let heightmap = col.heightmaps.get("WORLD_SURFACE").unwrap_or_else(|| &FALLBACK_HEIGHTMAP);
                         for (block_z, row) in heightmap.iter().enumerate() {
                             for (block_x, max_y) in row.iter().enumerate() {
-                                let mut col_color = MapColor::Clear;
+                                let mut col_color = MapColor::None;
                                 let mut y = *max_y;
                                 while y >= col.y_pos {
                                     let chunk_y = y.div_euclid(16) as i8;
@@ -297,7 +297,7 @@ async fn main(Args { world_dir }: Args) -> Result<(), Error> {
                                             BlockMapColor::Pillar { top, side } => if block.properties.get("axis").is_some_and(|axis| axis != "y") { side } else { top },
                                             BlockMapColor::Waterloggable { dry, wet } => if block.properties.get("waterlogged").is_some_and(|waterlogged| waterlogged == "true") { wet } else { dry },
                                         };
-                                        if col_color != MapColor::Clear { break }
+                                        if col_color != MapColor::None { break }
                                     }
                                     if y == col.y_pos { break }
                                     y -= 1;
@@ -305,8 +305,8 @@ async fn main(Args { world_dir }: Args) -> Result<(), Error> {
                                 let x = col.x_pos * 16 + block_x as i32;
                                 let z = col.z_pos * 16 + block_z as i32;
                                 let tint = match col_color {
-                                    MapColor::Clear => Tint::Normal,
-                                    MapColor::WaterBlue => {
+                                    MapColor::None => Tint::Normal,
+                                    MapColor::Water => {
                                         let water_depth = (col.y_pos..=y).rev().take_while(|y| {
                                             let chunk_y = y.div_euclid(16) as i8;
                                             let block_y = y.rem_euclid(16) as usize;
@@ -320,7 +320,7 @@ async fn main(Args { world_dir }: Args) -> Result<(), Error> {
                                                     BlockMapColor::Pillar { top, side } => if block.properties.get("axis").is_some_and(|axis| axis != "y") { side } else { top },
                                                     BlockMapColor::Waterloggable { dry, wet } => if block.properties.get("waterlogged").is_some_and(|waterlogged| waterlogged == "true") { wet } else { dry },
                                                 };
-                                                col_color == MapColor::WaterBlue || block.properties.get("waterlogged").is_some_and(|waterlogged| waterlogged == "true")
+                                                col_color == MapColor::Water || block.properties.get("waterlogged").is_some_and(|waterlogged| waterlogged == "true")
                                             } else {
                                                 false
                                             }
@@ -350,7 +350,7 @@ async fn main(Args { world_dir }: Args) -> Result<(), Error> {
                                                             BlockMapColor::Pillar { top, side } => if block.properties.get("axis").is_some_and(|axis| axis != "y") { side } else { top },
                                                             BlockMapColor::Waterloggable { dry, wet } => if block.properties.get("waterlogged").is_some_and(|waterlogged| waterlogged == "true") { wet } else { dry },
                                                         };
-                                                        col_color != MapColor::Clear
+                                                        col_color != MapColor::None
                                                     } else {
                                                         false
                                                     }
@@ -389,7 +389,7 @@ async fn main(Args { world_dir }: Args) -> Result<(), Error> {
                                                                 BlockMapColor::Pillar { top, side } => if block.properties.get("axis").is_some_and(|axis| axis != "y") { side } else { top },
                                                                 BlockMapColor::Waterloggable { dry, wet } => if block.properties.get("waterlogged").is_some_and(|waterlogged| waterlogged == "true") { wet } else { dry },
                                                             };
-                                                            col_color != MapColor::Clear
+                                                            col_color != MapColor::None
                                                         } else {
                                                             false
                                                         }
