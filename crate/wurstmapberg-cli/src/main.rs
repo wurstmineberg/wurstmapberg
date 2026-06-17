@@ -15,7 +15,6 @@ use {
         pin::pin,
         sync::Arc,
     },
-    chrono::prelude::*,
     futures::stream::{
         FuturesUnordered,
         TryStreamExt as _,
@@ -237,7 +236,25 @@ enum Error {
     Regions(HashMap<[i32; 2], RegionDecodeError>),
 }
 
-#[wheel::main(max_blocking_threads = 0)]
+impl wheel::CustomExit for Error {
+    fn exit(self, cmd_name: &'static str) -> ! {
+        match self {
+            Self::Regions(region_errors) => {
+                println!("failed to render {} region{}:", region_errors.len(), if region_errors.len() == 1 { "" } else { "s" });
+                for ([x, z], e) in region_errors {
+                    println!("{x}, {z}: {e} (debug info: {e:?})");
+                }
+            }
+            _ => {
+                eprintln!("{cmd_name}: {self}");
+                eprintln!("debug info: {self:?}");
+            }
+        }
+        std::process::exit(1)
+    }
+}
+
+#[wheel::main(max_blocking_threads = 0, custom_exit)]
 async fn main(Args { world_dir }: Args) -> Result<(), Error> {
     let block_colors = Arc::new(colors::get_block_colors());
     fs::create_dir_all("out").await?;
@@ -268,7 +285,7 @@ async fn main(Args { world_dir }: Args) -> Result<(), Error> {
                 let block_colors = block_colors.clone();
                 let col_errors = col_errors.clone();
                 prev = Some(tokio::task::spawn_blocking(move || {
-                    println!("{} processing region {}, {}", Local::now().format("%F %T"), region.coords[0], region.coords[1]);
+                    println!("processing region {}, {}", region.coords[0], region.coords[1]);
                     let mut region_img = RgbaImage::new(16 * 32, 16 * 32);
                     for col in &region {
                         let col = match col {
@@ -433,6 +450,7 @@ async fn main(Args { world_dir }: Args) -> Result<(), Error> {
     } else if !col_errors.is_empty() {
         Err(Error::Cols(col_errors))
     } else {
+        println!("all regions rendered successfully");
         Ok(())
     }
 }

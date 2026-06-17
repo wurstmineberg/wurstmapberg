@@ -7,7 +7,6 @@ edition.workspace = true
 workspace = true
 
 [dependencies]
-chrono = "0.4"
 clap = { version = "4", features = ["derive"] }
 collect-mac = "0.1"
 futures = "0.3"
