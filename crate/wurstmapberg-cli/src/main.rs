@@ -8,10 +8,7 @@ use {
             BTreeSet,
             HashMap,
         },
-        path::{
-            Path,
-            PathBuf,
-        },
+        path::PathBuf,
         pin::pin,
         sync::Arc,
     },
@@ -218,6 +215,8 @@ static FALLBACK_HEIGHTMAP: &[[i32; 16]; 16] = &[[320; 16]; 16];
 #[clap(version)]
 struct Args {
     world_dir: PathBuf,
+    #[clap(default_value = "out")]
+    out_dir: PathBuf,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -255,9 +254,9 @@ impl wheel::CustomExit for Error {
 }
 
 #[wheel::main(max_blocking_threads = 0, custom_exit)]
-async fn main(Args { world_dir }: Args) -> Result<(), Error> {
+async fn main(Args { world_dir, out_dir }: Args) -> Result<(), Error> {
     let block_colors = Arc::new(colors::get_block_colors());
-    fs::create_dir_all("out").await?;
+    fs::create_dir_all(&out_dir).await?;
     let region_errors = Arc::<Mutex<HashMap<_, _>>>::default();
     let col_errors = Arc::<Mutex<HashMap<_, _>>>::default();
     let mut coords = HashMap::<_, BTreeSet<_>>::default();
@@ -271,6 +270,7 @@ async fn main(Args { world_dir }: Args) -> Result<(), Error> {
         let region_errors = region_errors.clone();
         let col_errors = col_errors.clone();
         let world_dir = &world_dir;
+        let out_dir = &out_dir;
         renderers.push(async move {
             let mut prev = None;
             for z in zs {
@@ -284,6 +284,7 @@ async fn main(Args { world_dir }: Args) -> Result<(), Error> {
                 };
                 let block_colors = block_colors.clone();
                 let col_errors = col_errors.clone();
+                let out_dir = out_dir.clone();
                 prev = Some(tokio::task::spawn_blocking(move || {
                     println!("processing region {}, {}", region.coords[0], region.coords[1]);
                     let mut region_img = RgbaImage::new(16 * 32, 16 * 32);
@@ -427,7 +428,7 @@ async fn main(Args { world_dir }: Args) -> Result<(), Error> {
                             }
                         }
                     }
-                    let path = Path::new("out").join(format!("r.{}.{}.png", region.coords[0], region.coords[1]));
+                    let path = out_dir.join(format!("r.{}.{}.png", region.coords[0], region.coords[1]));
                     let changed = match image::open(&path) { //TODO async
                         Ok(old_img) => RgbaImage::from(old_img) != region_img,
                         Err(ImageError::IoError(e)) if e.kind() == io::ErrorKind::NotFound => true,
