@@ -19,6 +19,19 @@
                     cargo
                 ];
             };
+            flamegraph = pkgs.mkShell {
+                packages = with pkgs; [
+                    cargo
+                    cargo-flamegraph
+                ];
+                shellHook = ''
+                    while [[ $(rsync --delete -ai wurstmineberg@wurstmineberg.de:/opt/wurstmineberg/world/wurstmineberg/ world/) ]]; do
+                        echo 'rsync exited with output, repeating'
+                    done
+                    cargo flamegraph --package=wurstmapberg-cli --features=flamegraph --profile=flamegraph -- world/world
+                    exit
+                '';
+            };
         });
     };
 }

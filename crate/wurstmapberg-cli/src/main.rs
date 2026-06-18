@@ -236,7 +236,7 @@ enum Error {
 }
 
 impl wheel::CustomExit for Error {
-    fn exit(self, cmd_name: &'static str) -> ! {
+    fn exit(self, cmd_name: &'static str) {
         match self {
             Self::Regions(region_errors) => {
                 println!("failed to render {} region{}:", region_errors.len(), if region_errors.len() == 1 { "" } else { "s" });
@@ -249,7 +249,9 @@ impl wheel::CustomExit for Error {
                 eprintln!("debug info: {self:?}");
             }
         }
-        std::process::exit(1)
+        #[cfg(not(feature = "flamegraph"))] {
+            std::process::exit(1)
+        }
     }
 }
 

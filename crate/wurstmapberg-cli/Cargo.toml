@@ -6,6 +6,9 @@ edition.workspace = true
 [lints]
 workspace = true
 
+[features]
+flamegraph = []
+
 [dependencies]
 clap = { version = "4", features = ["derive"] }
 collect-mac = "0.1"
