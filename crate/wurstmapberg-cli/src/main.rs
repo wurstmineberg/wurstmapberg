@@ -301,7 +301,8 @@ async fn main(Args { world_dir, out_dir }: Args) -> Result<(), Error> {
                     Ok(None) => return Err(Error::RegionNotFound),
                     Err(e) => {
                         region_errors.lock().insert([x, z], e);
-                        return Ok(())
+                        buf1 = Vec::default();
+                        continue
                     }
                 };
                 let block_colors = block_colors.clone();
