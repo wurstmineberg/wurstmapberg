@@ -1,0 +1,9 @@
+[Unit]
+Description=Update Minecraft map
+
+[Service]
+Type=oneshot
+ExecStart=/opt/wurstmineberg/maps/run-wurstmapberg
+User=wurstmineberg
+Group=wurstmineberg
+WorkingDirectory=/home/wurstmineberg
