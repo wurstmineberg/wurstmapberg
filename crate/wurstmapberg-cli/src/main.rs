@@ -431,13 +431,16 @@ async fn main(Args { world_dir, out_dir }: Args) -> Result<(), Error> {
                         }
                     }
                     let path = out_dir.join(format!("r.{}.{}.png", region.coords[0], region.coords[1]));
-                    let changed = match image::open(&path) { //TODO async
+                    let changed = match image::open(&path) { //TODO(https://github.com/tokio-rs/tokio/issues/7266) async
                         Ok(old_img) => RgbaImage::from(old_img) != region_img,
                         Err(ImageError::IoError(e)) if e.kind() == io::ErrorKind::NotFound => true,
                         Err(e) => return Err(e.into()),
                     };
                     if changed {
-                        region_img.save_with_format(path, image::ImageFormat::Png)?; //TODO async
+                        region_img.save_with_format(path, image::ImageFormat::Png)?; //TODO(https://github.com/tokio-rs/tokio/issues/7266) async
+                        println!("region {}, {} saved", region.coords[0], region.coords[1]);
+                    } else {
+                        println!("region {}, {} unchanged", region.coords[0], region.coords[1]);
                     }
                     Ok::<_, Error>(region)
                 }).await??);
