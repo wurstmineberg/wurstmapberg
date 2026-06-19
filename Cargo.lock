@@ -837,7 +837,7 @@ dependencies = [
  "futures",
  "gix",
  "image",
- "itertools",
+ "itertools 0.15.0",
  "mcanvil",
  "mimalloc",
  "thiserror",
@@ -2508,6 +2508,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "itertools"
+version = "0.15.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8b4baf93f58d4425749ca49a51c50ebab072c5df6994d08fed93541c331481dc"
+dependencies = [
+ "either",
+]
+
+[[package]]
 name = "itoa"
 version = "1.0.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2779,13 +2788,13 @@ dependencies = [
 [[package]]
 name = "mcanvil"
 version = "0.3.4"
-source = "git+https://github.com/wurstmineberg/rust-anvil#a44860d96631e33227f02911ca202066ece5518e"
+source = "git+https://github.com/wurstmineberg/rust-anvil#83043da3a147035a7299121f9645812aa91ac7e0"
 dependencies = [
  "arrayref",
  "chrono",
  "futures",
  "hematite-nbt",
- "itertools",
+ "itertools 0.15.0",
  "lazy-regex",
  "serde",
  "serde_with",
@@ -3323,7 +3332,7 @@ dependencies = [
  "built",
  "cfg-if",
  "interpolate_name",
- "itertools",
+ "itertools 0.14.0",
  "libc",
  "libfuzzer-sys",
  "log",
@@ -4458,13 +4467,13 @@ dependencies = [
 [[package]]
 name = "wheel"
 version = "0.15.3"
-source = "git+https://github.com/fenhl/wheel#e9bb1fb327ec6df839081ce36e2dea110bdd97e4"
+source = "git+https://github.com/fenhl/wheel#f2f9ab70102a22f0fb45ddbe4617d395f5475f4f"
 dependencies = [
  "async-trait",
  "clap",
  "clap_complete",
  "futures",
- "itertools",
+ "itertools 0.15.0",
  "reqwest",
  "serde",
  "serde_json",
@@ -4478,9 +4487,9 @@ dependencies = [
 [[package]]
 name = "wheel-derive"
 version = "0.15.3"
-source = "git+https://github.com/fenhl/wheel#e9bb1fb327ec6df839081ce36e2dea110bdd97e4"
+source = "git+https://github.com/fenhl/wheel#f2f9ab70102a22f0fb45ddbe4617d395f5475f4f"
 dependencies = [
- "itertools",
+ "itertools 0.15.0",
  "proc-macro2",
  "quote",
  "syn",

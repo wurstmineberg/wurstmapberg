@@ -13,7 +13,7 @@ async_zip = { version = "0.0.18", features = ["full"] }
 futures = "0.3"
 gix = { version = "0.84", features = ["blocking-http-transport-reqwest-rust-tls-trust-dns"] }
 image = { version = "0.25", default-features = false, features = ["rayon", "png"] }
-itertools = "0.14"
+itertools = "0.15"
 mcanvil = { git = "https://github.com/wurstmineberg/rust-anvil" }
 mimalloc = "0.1"
 thiserror = "2"

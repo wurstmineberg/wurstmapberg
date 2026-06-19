@@ -292,9 +292,11 @@ async fn main(Args { world_dir, out_dir }: Args) -> Result<(), Error> {
         let world_dir = &world_dir;
         let out_dir = &out_dir;
         renderers.push(async move {
-            let mut prev = None;
+            let mut prev = None::<Region>;
+            let mut buf1 = Vec::default();
+            let mut buf2 = Vec::default();
             for z in zs {
-                let region = match Region::find(world_dir, DIMENSION, [x, z]).await {
+                let region = match Region::find_with_bufs(world_dir, DIMENSION, [x, z], buf1, &mut buf2).await {
                     Ok(Some(region)) => region,
                     Ok(None) => return Err(Error::RegionNotFound),
                     Err(e) => {
@@ -305,7 +307,7 @@ async fn main(Args { world_dir, out_dir }: Args) -> Result<(), Error> {
                 let block_colors = block_colors.clone();
                 let col_errors = col_errors.clone();
                 let out_dir = out_dir.clone();
-                prev = Some(tokio::task::spawn_blocking(move || {
+                (prev, buf1) = tokio::task::spawn_blocking(move || {
                     println!("processing region {}, {}", region.coords[0], region.coords[1]);
                     let mut region_img = RgbaImage::new(16 * 32, 16 * 32);
                     for col in &region {
@@ -313,7 +315,7 @@ async fn main(Args { world_dir, out_dir }: Args) -> Result<(), Error> {
                             Ok(col) => col,
                             Err(e) => {
                                 col_errors.lock().insert([x, z], e);
-                                return Ok(region)
+                                return Ok((Some(region), prev.map(|prev| prev.buf).unwrap_or_default()))
                             }
                         };
                         let heightmap = col.heightmaps.get("WORLD_SURFACE").unwrap_or(FALLBACK_HEIGHTMAP);
@@ -411,7 +413,7 @@ async fn main(Args { world_dir, out_dir }: Args) -> Result<(), Error> {
                                                     Ok(col) => col,
                                                     Err(e) => {
                                                         col_errors.lock().insert([x, z], e);
-                                                        return Ok(region)
+                                                        return Ok((Some(region), prev.map(|prev| prev.buf).unwrap_or_default()))
                                                     }
                                                 };
                                                 col.and_then(|col| {
@@ -460,8 +462,8 @@ async fn main(Args { world_dir, out_dir }: Args) -> Result<(), Error> {
                     } else {
                         println!("region {}, {} unchanged", region.coords[0], region.coords[1]);
                     }
-                    Ok::<_, Error>(region)
-                }).await??);
+                    Ok::<_, Error>((Some(region), prev.map(|prev| prev.buf).unwrap_or_default()))
+                }).await??;
             }
             Ok(())
         });
