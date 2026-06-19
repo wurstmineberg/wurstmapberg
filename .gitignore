@@ -1,4 +1,7 @@
-/Cargo.lock
+/flamegraph.svg
 /out
+/crate/extract-colors/sources
+/perf.data
+/perf.data.old
 /target
 /world
