@@ -219,29 +219,47 @@ struct Args {
     out_dir: PathBuf,
 }
 
+fn format_region_col_errors(sample_region_error: Option<&RegionDecodeError>, sample_col_error: Option<&mcanvil::ChunkColumnDecodeError>) -> String {
+    match (sample_region_error, sample_col_error) {
+        (None, None) => format!("no error"),
+        (None, Some(col_error)) => format!("sample chunk column error: {col_error}"),
+        (Some(region_error), None) => format!("sample region error: {region_error}"),
+        (Some(region_error), Some(col_error)) => format!("sample region error: {region_error}; sample chunk column error: {col_error}"),
+    }
+}
+
 #[derive(Debug, thiserror::Error)]
 enum Error {
     #[error(transparent)] Image(#[from] ImageError),
     #[error(transparent)] Task(#[from] tokio::task::JoinError),
     #[error(transparent)] Wheel(#[from] wheel::Error),
-    /// Note these are keyed by region coords, not chunk coords
-    #[error("{}", .0.values().next().unwrap())]
-    Cols(HashMap<[i32; 2], mcanvil::ChunkColumnDecodeError>),
     #[error("failed to get list of regions: {0}")]
     ListRegions(RegionDecodeError),
     #[error("a region that was listed has since been deleted")]
     RegionNotFound,
-    #[error("{}", .0.values().next().unwrap())]
-    Regions(HashMap<[i32; 2], RegionDecodeError>),
+    #[error("{}", format_region_col_errors(.region_errors.values().next(), .col_errors.values().next()))]
+    RegionsCols {
+        region_errors: HashMap<[i32; 2], RegionDecodeError>,
+        /// Note these are keyed by region coords, not chunk coords
+        col_errors: HashMap<[i32; 2], mcanvil::ChunkColumnDecodeError>,
+    },
 }
 
 impl wheel::CustomExit for Error {
     fn exit(self, cmd_name: &'static str) {
         match self {
-            Self::Regions(region_errors) => {
-                println!("failed to render {} region{}:", region_errors.len(), if region_errors.len() == 1 { "" } else { "s" });
-                for ([x, z], e) in region_errors {
-                    println!("{x}, {z}: {e} (debug info: {e:?})");
+            Self::RegionsCols { region_errors, col_errors } => {
+                if !region_errors.is_empty() {
+                    println!("failed to decode {} region{}:", region_errors.len(), if region_errors.len() == 1 { "" } else { "s" });
+                    for ([x, z], e) in region_errors {
+                        println!("{x}, {z}: {e} (debug info: {e:?})");
+                    }
+                }
+                if !col_errors.is_empty() {
+                    println!("failed to decode {} chunk columns{}:", col_errors.len(), if col_errors.len() == 1 { "" } else { "s" });
+                    for ([x, z], e) in col_errors {
+                        println!("in region {x}, {z}: {e} (debug info: {e:?})");
+                    }
                 }
             }
             _ => {
@@ -451,10 +469,8 @@ async fn main(Args { world_dir, out_dir }: Args) -> Result<(), Error> {
     while let Some(()) = renderers.try_next().await? {}
     let region_errors = Arc::into_inner(region_errors).unwrap().into_inner();
     let col_errors = Arc::into_inner(col_errors).unwrap().into_inner();
-    if !region_errors.is_empty() {
-        Err(Error::Regions(region_errors))
-    } else if !col_errors.is_empty() {
-        Err(Error::Cols(col_errors))
+    if !region_errors.is_empty() || !col_errors.is_empty() {
+        Err(Error::RegionsCols { region_errors, col_errors })
     } else {
         println!("all regions rendered successfully");
         Ok(())
