@@ -315,6 +315,7 @@ async fn main(Args { world_dir, out_dir }: Args) -> Result<(), Error> {
                             Ok(col) => col,
                             Err(e) => {
                                 col_errors.lock().insert([x, z], e);
+                                println!("region {}, {} failed due to chunk column decode error", region.coords[0], region.coords[1]);
                                 return Ok((Some(region), prev.map(|prev| prev.buf).unwrap_or_default()))
                             }
                         };
@@ -413,6 +414,7 @@ async fn main(Args { world_dir, out_dir }: Args) -> Result<(), Error> {
                                                     Ok(col) => col,
                                                     Err(e) => {
                                                         col_errors.lock().insert([x, z], e);
+                                                        println!("region {}, {} failed due to chunk column decode error", region.coords[0], region.coords[1]);
                                                         return Ok((Some(region), prev.map(|prev| prev.buf).unwrap_or_default()))
                                                     }
                                                 };
