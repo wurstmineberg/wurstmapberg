@@ -293,22 +293,21 @@ async fn main(Args { world_dir, out_dir }: Args) -> Result<(), Error> {
         let out_dir = &out_dir;
         renderers.push(async move {
             let mut prev = None::<Region>;
-            let mut buf1 = Vec::default();
-            let mut buf2 = Vec::default();
+            let mut buf = Vec::default();
             for z in zs {
-                let region = match Region::find_with_bufs(world_dir, DIMENSION, [x, z], buf1, &mut buf2).await {
+                let region = match Region::find_no_diff(world_dir, DIMENSION, [x, z], buf).await { // this is safe since we're not operating on a live server's world dir; read-during-write mitigation is performed by the wrapper script calling rsync in a loop until no changes are synced
                     Ok(Some(region)) => region,
                     Ok(None) => return Err(Error::RegionNotFound),
                     Err(e) => {
                         region_errors.lock().insert([x, z], e);
-                        buf1 = Vec::default();
+                        buf = Vec::default();
                         continue
                     }
                 };
                 let block_colors = block_colors.clone();
                 let col_errors = col_errors.clone();
                 let out_dir = out_dir.clone();
-                (prev, buf1) = tokio::task::spawn_blocking(move || {
+                (prev, buf) = tokio::task::spawn_blocking(move || {
                     println!("processing region {}, {}", region.coords[0], region.coords[1]);
                     let mut region_img = RgbaImage::new(16 * 32, 16 * 32);
                     for col in &region {

@@ -2788,7 +2788,7 @@ dependencies = [
 [[package]]
 name = "mcanvil"
 version = "0.3.4"
-source = "git+https://github.com/wurstmineberg/rust-anvil#83043da3a147035a7299121f9645812aa91ac7e0"
+source = "git+https://github.com/wurstmineberg/rust-anvil#8ae87743d0f1fa8a64b913d00ce151ff8929ed71"
 dependencies = [
  "arrayref",
  "chrono",
