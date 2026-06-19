@@ -25,3 +25,4 @@ strip = true
 [profile.flamegraph]
 inherits = "release"
 debug = true
+strip = false
