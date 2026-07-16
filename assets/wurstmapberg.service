@@ -3,7 +3,7 @@ Description=Update Minecraft map
 
 [Service]
 Type=oneshot
-ExecStart=/opt/wurstmineberg/maps/run-wurstmapberg
+ExecStart=/opt/git/github.com/wurstmineberg/wurstmapberg/main/assets/run-wurstmapberg.sh
 User=wurstmineberg
 Group=wurstmineberg
 WorkingDirectory=/home/wurstmineberg

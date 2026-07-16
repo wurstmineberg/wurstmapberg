@@ -6,7 +6,7 @@ echo "cleaning up old cargo-install tempfiles..."
 find /tmp -name 'cargo-install*' -type d -mtime +3 -exec rm -rf '{}' +
 echo "updating worlds..."
 cd /opt/wurstmineberg/maps
-./update_world wurstmineberg
+/opt/git/github.com/wurstmineberg/wurstmapberg/main/assets/update_world.sh wurstmineberg
 cd /home/wurstmineberg
 echo "updating Rust..."
 .cargo/bin/rustup update stable
